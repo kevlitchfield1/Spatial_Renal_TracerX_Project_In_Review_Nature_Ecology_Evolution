@@ -1,0 +1,215 @@
+---
+title: "R Notebook for modelling figures"
+output:
+  pdf_document: default
+  html_notebook: default
+editor_options:
+  chunk_output_type: console
+---
+
+# Set working directory
+```{r}
+# setwd("TYPE_PATH_TO/r_notebook_modelling/")
+```
+
+# Load libraries
+
+```{r}
+
+library(ggplot2)
+library(ggpubr)
+library(dplyr)
+library(tidyr)
+
+```
+
+# colours for figures
+
+```{r}
+
+color_at_centre = "#E8CAAD"
+color_at_margin = "#C45A11"
+
+color_less_necrotic = "#C1FFC1"
+color_more_necrotic = "#698B69"
+
+```
+
+
+# Figure panel (f) -- compare number of SCNAs at the centre vs at the margin
+
+# input data : ./data_frames/df_necrotic_frac_scna_burden_all_v2.csv
+
+```{r}
+# --- read data frame ----
+fin_name <- "./data_frames/df_necrotic_frac_scna_burden_all_v2.csv"
+df_necrotic_frac_scna_burden_all_v2 <- read.csv(fin_name)
+
+# --- filter out too necrotic regions & split into "less necrotic" vs "more necrotic" ----
+df_modified <- df_necrotic_frac_scna_burden_all_v2[
+  which(df_necrotic_frac_scna_burden_all_v2$Necrotic.Fraction < 0.8), 
+]
+median_necrotic_fraction <- median(df_modified$Necrotic.Fraction)
+print(median_necrotic_fraction)
+
+df_modified <- df_modified %>% mutate(
+  Necrotic.Fraction.Interval = ifelse(
+    df_modified$Necrotic.Fraction <= median_necrotic_fraction,
+    "Less necrotic", "More necrotic"
+  )
+)
+
+theme_set(theme_classic())
+g <- ggplot(df_modified, aes(Location, Num.Driver.SCNA)) 
+
+# --- print median & number of regions ----
+print(median(df_modified[which(df_modified$Location == "At.Centre"), "Num.Driver.SCNA"]))
+print(median(df_modified[which(df_modified$Location == "At.Margin"), "Num.Driver.SCNA"]))
+print(mean(df_modified[which(df_modified$Location == "At.Centre"), "Num.Driver.SCNA"]))
+print(mean(df_modified[which(df_modified$Location == "At.Margin"), "Num.Driver.SCNA"]))
+print(nrow(df_modified[which(df_modified$Location == "At.Centre"), ]))
+print(nrow(df_modified[which(df_modified$Location == "At.Margin"), ]))
+
+# --- VIOLIN ----
+p <- g +
+  geom_violin(aes(fill= Location), draw_quantiles = c(0.25, 0.5, 0.75)) +
+  #stat_summary(fun.y=mean, fill='black', color='black',geom='point', size=5) +
+  #geom_jitter(col='black', size = 0.1, width = 0.2) + 
+  scale_fill_manual(values = c("At.Centre" = color_at_centre, "At.Margin" = color_at_margin)) +
+  stat_compare_means(size=3) +
+  ylim(c(0,16)) +
+  labs(x = "Location", y = "Number of SCNAs")+
+  theme(
+    axis.text.x = element_text(size = 6),
+    axis.text.y = element_text(size = 6),  
+    axis.title.x = element_text(size = 8),
+    axis.title.y = element_text(size = 8),
+    legend.position = "none"
+  )
+print (p)
+
+```
+
+# Figure panel (g) -- compare number of SCNAs in less and more necrotic regions
+
+# input data : as above (please run the code block above first!)
+
+```{r}
+
+theme_set(theme_classic())
+g <- ggplot(df_modified, aes(Necrotic.Fraction.Interval, Num.Driver.SCNA)) 
+
+# --- print median & sample size ----
+print(median(df_modified[which(df_modified$Necrotic.Fraction.Interval == "Less necrotic"), "Num.Driver.SCNA"]))
+print(median(df_modified[which(df_modified$Necrotic.Fraction.Interval == "More necrotic"), "Num.Driver.SCNA"]))
+print(mean(df_modified[which(df_modified$Necrotic.Fraction.Interval == "Less necrotic"), "Num.Driver.SCNA"]))
+print(mean(df_modified[which(df_modified$Necrotic.Fraction.Interval == "More necrotic"), "Num.Driver.SCNA"]))
+print(nrow(df_modified[which(df_modified$Necrotic.Fraction.Interval == "Less necrotic"), ]))
+print(nrow(df_modified[which(df_modified$Necrotic.Fraction.Interval == "More necrotic"), ]))
+
+# --- VIOLIN ----
+p <- g +
+  geom_violin(aes(fill= Necrotic.Fraction.Interval), draw_quantiles = c(0.25,0.5,0.75)) +
+  #stat_summary(fun.y=mean, fill='black', color='black',geom='point', size=5) +
+  #geom_jitter(col='black', size = 0.1) + 
+  scale_fill_manual(values = c("Less necrotic" = color_less_necrotic, "More necrotic" = color_more_necrotic)) +
+  stat_compare_means(size=3) +
+  ylim(c(0,16)) +
+  labs(x = "Necrosis of biopsies", y = "Number of SCNAs")+
+  theme(
+    axis.text.x = element_text(size = 6),
+    axis.text.y = element_text(size = 6),  
+    axis.title.x = element_text(size = 8),
+    axis.title.y = element_text(size = 8),
+    legend.position = "none"
+  )
+print (p)
+
+```
+
+
+# Figure panel (h) -- average clone birth times in simulations with or without necrosis
+
+# input data
+* simulations with necrosis : ./data_frames/df_necrotic_frac_scna_burden_all_v2.csv
+* simulations without necrosis (control) : ./data_frames/df_clone_birth_in_regions_all_CTRL_sims_no_necrosis.csv
+
+```{r}
+
+data_path_control <- "./data_frames/df_clone_birth_in_regions_all_CTRL_sims_no_necrosis.csv"
+data_path_necrosis <- "./data_frames/df_clone_birth_in_regions_all.csv"
+
+conds <- c("no necrosis", "necrosis")
+paths <- c(data_path_control, data_path_necrosis)
+
+df_compare_clone_birth <- data.frame()
+
+for (k in 1:length(conds)) {
+  cond <- conds[k]
+  path <- paths[k]
+  
+  df_clone_birth_in_regions_all <- read.csv(path)
+  
+  df_clone_birth_in_regions_all$Condition = cond
+  
+  df_compare_clone_birth <- rbind(df_compare_clone_birth, df_clone_birth_in_regions_all)
+}
+
+# --- print median & number of regions ----
+df_compare_clone_birth_omit_na <- df_compare_clone_birth %>% drop_na()
+
+print(median(df_compare_clone_birth_omit_na[which(df_compare_clone_birth_omit_na$Condition == "necrosis" & 
+          df_compare_clone_birth_omit_na$Location == "At.Centre") , 
+   "MeanCloneBirth"]))
+print(median(df_compare_clone_birth_omit_na[which(df_compare_clone_birth_omit_na$Condition == "no necrosis" & 
+          df_compare_clone_birth_omit_na$Location == "At.Centre") , 
+   "MeanCloneBirth"]))
+print(mean(df_compare_clone_birth_omit_na[which(df_compare_clone_birth_omit_na$Condition == "necrosis" & 
+          df_compare_clone_birth_omit_na$Location == "At.Centre") , 
+   "MeanCloneBirth"]))
+print(mean(df_compare_clone_birth_omit_na[which(df_compare_clone_birth_omit_na$Condition == "no necrosis" & 
+          df_compare_clone_birth_omit_na$Location == "At.Centre") , 
+   "MeanCloneBirth"]))
+
+print(nrow(df_compare_clone_birth[
+  which(df_compare_clone_birth$Condition == "no necrosis" & 
+          df_compare_clone_birth$Location == "At.Centre") , 
+  ])
+)
+print(nrow(df_compare_clone_birth[
+  which(df_compare_clone_birth$Condition == "necrosis" & 
+          df_compare_clone_birth$Location == "At.Centre") , ])
+)
+print(nrow(df_compare_clone_birth[
+  which(df_compare_clone_birth$Condition == "no necrosis" & 
+          df_compare_clone_birth$Location == "At.Margin") , ])
+)
+print(nrow(df_compare_clone_birth[
+  which(df_compare_clone_birth$Condition == "necrosis" & 
+          df_compare_clone_birth$Location == "At.Margin") , ])
+)
+
+# === VIOLIN ====
+theme_set(theme_classic())
+g <- ggplot(df_compare_clone_birth_omit_na, aes(x=Location, y=MeanCloneBirth, fill=Condition))
+
+p <- g +
+  geom_violin(draw_quantiles = c(0.25, 0.5, 0.75)) +
+  #stat_summary(fun.y=mean, fill='black', color='black',geom='point', size=5) +
+  scale_fill_manual(values = c("no necrosis" = color_less_necrotic, "necrosis" = color_more_necrotic)) +
+  #geom_jitter(col='black', size = 0.1) + 
+  stat_compare_means(size=3, method = "wilcox") +
+  ylim(c(0,1)) +
+  labs(x = "Location", y = "Average clone birth time in region")+
+  theme(
+    axis.text.x = element_text(size = 6),
+    axis.text.y = element_text(size = 6),  
+    axis.title.x = element_text(size = 8),
+    axis.title.y = element_text(size = 8)
+  )
+print (p)
+
+```
+
+
+
